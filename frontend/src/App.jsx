@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import {
   MapContainer,
   TileLayer,
@@ -41,6 +41,8 @@ function MapClickHandler({ onMapClick }) {
 }
 
 function App() {
+  const chatMessagesEndRef = useRef(null)
+
   // Posts
   const [posts, setPosts] = useState([])
   const [selectedPost, setSelectedPost] = useState(null)
@@ -257,6 +259,14 @@ function App() {
       clearInterval(interval)
     }
   }, [selectedChannel])
+
+  // Automatically scroll to the newest chat message
+  useEffect(() => {
+    chatMessagesEndRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end',
+    })
+  }, [chatMessages])
 
   // Load comments when a post is selected
   useEffect(() => {
@@ -563,57 +573,57 @@ function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-  <span className="brand-icon">
-    <svg viewBox="0 0 50 50" className="planetary-logo">
-      <defs>
-        <radialGradient id="planetGradient" cx="35%" cy="30%">
-          <stop offset="0%" stopColor="#d8d0ff" />
-          <stop offset="45%" stopColor="#9580ff" />
-          <stop offset="100%" stopColor="#34266f" />
-        </radialGradient>
-        <linearGradient id="orbitGradient">
-          <stop offset="0%" stopColor="#8271e8" />
-          <stop offset="50%" stopColor="#64dcff" />
-          <stop offset="100%" stopColor="#b58aff" />
-        </linearGradient>
-      </defs>
+          <span className="brand-icon">
+            <svg viewBox="0 0 50 50" className="planetary-logo">
+              <defs>
+                <radialGradient id="planetGradient" cx="35%" cy="30%">
+                  <stop offset="0%" stopColor="#d8d0ff" />
+                  <stop offset="45%" stopColor="#9580ff" />
+                  <stop offset="100%" stopColor="#34266f" />
+                </radialGradient>
+                <linearGradient id="orbitGradient">
+                  <stop offset="0%" stopColor="#8271e8" />
+                  <stop offset="50%" stopColor="#64dcff" />
+                  <stop offset="100%" stopColor="#b58aff" />
+                </linearGradient>
+              </defs>
 
-      <ellipse
-        className="logo-orbit"
-        cx="25"
-        cy="25"
-        rx="22"
-        ry="9"
-        transform="rotate(-28 25 25)"
-        fill="none"
-        stroke="url(#orbitGradient)"
-        strokeWidth="2.5"
-      />
+              <ellipse
+                className="logo-orbit"
+                cx="25"
+                cy="25"
+                rx="22"
+                ry="9"
+                transform="rotate(-28 25 25)"
+                fill="none"
+                stroke="url(#orbitGradient)"
+                strokeWidth="2.5"
+              />
 
-      <circle
-        cx="25"
-        cy="25"
-        r="12"
-        fill="url(#planetGradient)"
-        stroke="#c8baff"
-        strokeWidth="1"
-      />
+              <circle
+                cx="25"
+                cy="25"
+                r="12"
+                fill="url(#planetGradient)"
+                stroke="#c8baff"
+                strokeWidth="1"
+              />
 
-      <path
-        d="M17 19 Q24 14 32 19"
-        fill="none"
-        stroke="#eeeaff"
-        strokeWidth="1.2"
-        opacity=".7"
-      />
+              <path
+                d="M17 19 Q24 14 32 19"
+                fill="none"
+                stroke="#eeeaff"
+                strokeWidth="1.2"
+                opacity=".7"
+              />
 
-      <circle cx="39" cy="12" r="2" fill="#69ddff" />
-      <circle cx="10" cy="35" r="1.5" fill="#b59aff" />
-    </svg>
-  </span>
+              <circle cx="39" cy="12" r="2" fill="#69ddff" />
+              <circle cx="10" cy="35" r="1.5" fill="#b59aff" />
+            </svg>
+          </span>
 
-  <span className="brand-name">PLANETARY</span>
-</div>
+          <span className="brand-name">PLANETARY</span>
+        </div>
 
         <div className="user-info">
           <span className="status-dot online"></span>
@@ -850,6 +860,8 @@ function App() {
                       )
                     })
                   )}
+
+                  <div ref={chatMessagesEndRef}></div>
                 </div>
 
                 <form className="chat-form" onSubmit={sendChatMessage}>

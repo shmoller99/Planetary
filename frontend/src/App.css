@@ -1598,3 +1598,12 @@ textarea:focus {
 *::-webkit-scrollbar-corner {
   background: #080c16;
 }
+.chat-message-list {
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  min-height: 0;
+}
+
+.chat-message-list > div:last-child {
+  min-height: 1px;
+}
