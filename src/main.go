@@ -2,26 +2,74 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
+
+type Post struct {
+	ID        int64   `json:"id"`
+	Author    string  `json:"author"`
+	Title     string  `json:"title"`
+	Content   string  `json:"content"`
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+}
+
+type CreatePostRequest struct {
+	Username  string  `json:"username"`
+	Title     string  `json:"title"`
+	Content   string  `json:"content"`
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+}
+
+type Comment struct {
+	ID              int64  `json:"id"`
+	PostID          int64  `json:"post_id"`
+	Author          string `json:"author"`
+	Content         string `json:"content"`
+	ParentCommentID *int64 `json:"parent_comment_id"`
+}
+
+type CreateCommentRequest struct {
+	Username        string `json:"username"`
+	Content         string `json:"content"`
+	ParentCommentID *int64 `json:"parent_comment_id"`
+}
+
+type UserProfile struct {
+	Username          string `json:"username"`
+	PlanetName        string `json:"planet_name"`
+	Bio               string `json:"bio"`
+	PlanetDescription string `json:"planet_description"`
+}
+
+type UpdateProfileRequest struct {
+	Username          string `json:"username"`
+	Bio               string `json:"bio"`
+	PlanetName        string `json:"planet_name"`
+	PlanetDescription string `json:"planet_description"`
+}
 
 func main() {
 	if err := godotenv.Load("src/dbpass.env"); err != nil {
 		log.Fatal("Error loading environment file:", err)
 	}
-	databaseURL := os.Getenv("DATABASE_URL")
 
+	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		log.Fatal("DATABASE_URL is missing from environment file")
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -30,19 +78,13 @@ func main() {
 		log.Fatal("Unable to create connection pool:", err)
 	}
 	defer pool.Close()
+
 	if err := pool.Ping(ctx); err != nil {
 		log.Fatal("Could not connect to Supabase:", err)
 	}
 
 	fmt.Println("Successfully connected to Supabase!")
-	var dbTime time.Time
 
-	err = pool.QueryRow(ctx, "SELECT NOW()").Scan(&dbTime)
-	if err != nil {
-		log.Fatal("Query failed:", err)
-	}
-
-	fmt.Println("Database time:", dbTime)
 	username := "alice"
 	planetName := "Blue Haven"
 
@@ -56,86 +98,429 @@ func main() {
 		log.Fatal("Failed to insert user:", err)
 	}
 
-	fmt.Println("Successfully created user:", username)
-	var retrievedUsername string
-	var retrievedPlanet string
+	fmt.Println("Successfully initialized user:", username)
 
-	err = pool.QueryRow(ctx,
-		"SELECT username, planet_name FROM users WHERE username = $1",
-		username,
-	).Scan(&retrievedUsername, &retrievedPlanet)
-
-	if err != nil {
-		log.Fatal("Failed to retrieve user:", err)
-	}
-
-	fmt.Println("Retrieved user:", retrievedUsername)
-	fmt.Println("Planet:", retrievedPlanet)
-	var userID int64
-
-	err = pool.QueryRow(ctx,
-		"SELECT id FROM users WHERE username = $1",
-		username,
-	).Scan(&userID)
-
-	if err != nil {
-		log.Fatal("Failed to retrieve user ID:", err)
-	}
-
-	postTitle := "Hello, Planet Earth!"
-	postContent := "My first post on Planetary."
-
-	latitude := 40.7128
-	longitude := -74.0060
-
-	_, err = pool.Exec(ctx,
-		`INSERT INTO posts
-    (user_id, title, content, latitude, longitude)
-    VALUES ($1, $2, $3, $4, $5)`,
-		userID, postTitle, postContent, latitude, longitude,
-	)
-
-	if err != nil {
-		log.Fatal("Failed to create post:", err)
-	}
-
-	fmt.Println("Successfully created post:", postTitle)
-	rows, err := pool.Query(ctx,
-		`SELECT users.username, posts.title, posts.content,
-            posts.latitude, posts.longitude
-     FROM posts
-     JOIN users ON posts.user_id = users.id
-     ORDER BY posts.created_at DESC`,
-	)
-
-	if err != nil {
-		log.Fatal("Failed to retrieve posts:", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var author, title, content string
-		var lat, lon float64
-
-		err := rows.Scan(&author, &title, &content, &lat, &lon)
-		if err != nil {
-			log.Fatal("Failed to read post:", err)
+	// User profiles
+	http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodPut {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
 		}
 
-		fmt.Printf("\nAuthor: %s\nTitle: %s\nContent: %s\nLocation: %f, %f\n",
-			author, title, content, lat, lon)
-	}
+		queryCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
 
-	if err := rows.Err(); err != nil {
-		log.Fatal("Error iterating through posts:", err)
-	}
-	rand.Seed(time.Now().UnixNano())
+		var profile UserProfile
+
+		if r.Method == http.MethodPut {
+			var request UpdateProfileRequest
+
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				http.Error(w, "Invalid JSON", http.StatusBadRequest)
+				return
+			}
+
+			if request.Username == "" || request.PlanetName == "" {
+				http.Error(w, "Username and planet name are required", http.StatusBadRequest)
+				return
+			}
+
+			err := pool.QueryRow(queryCtx,
+				`UPDATE users
+				SET bio = $1, planet_name = $2, planet_description = $3
+				WHERE username = $4
+				RETURNING username, planet_name, bio, planet_description`,
+				request.Bio,
+				request.PlanetName,
+				request.PlanetDescription,
+				request.Username,
+			).Scan(
+				&profile.Username,
+				&profile.PlanetName,
+				&profile.Bio,
+				&profile.PlanetDescription,
+			)
+
+			if err != nil {
+				if err == pgx.ErrNoRows {
+					http.Error(w, "User not found", http.StatusNotFound)
+				} else {
+					log.Println("Failed to update profile:", err)
+					http.Error(w, "Failed to update profile", http.StatusInternalServerError)
+				}
+				return
+			}
+		} else {
+			requestedUsername := r.URL.Query().Get("username")
+
+			if requestedUsername == "" {
+				http.Error(w, "Missing username", http.StatusBadRequest)
+				return
+			}
+
+			err := pool.QueryRow(queryCtx,
+				`SELECT username, planet_name, bio, planet_description
+				FROM users
+				WHERE username = $1`,
+				requestedUsername,
+			).Scan(
+				&profile.Username,
+				&profile.PlanetName,
+				&profile.Bio,
+				&profile.PlanetDescription,
+			)
+
+			if err != nil {
+				if err == pgx.ErrNoRows {
+					http.Error(w, "User not found", http.StatusNotFound)
+				} else {
+					log.Println("Failed to retrieve user profile:", err)
+					http.Error(w, "Failed to retrieve user profile", http.StatusInternalServerError)
+				}
+				return
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(profile)
+	})
+
+	// Posts
+	http.HandleFunc("/posts", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet &&
+			r.Method != http.MethodPost &&
+			r.Method != http.MethodDelete {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		queryCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		if r.Method == http.MethodDelete {
+			postID, err := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+			if err != nil || postID <= 0 {
+				http.Error(w, "Invalid or missing post id", http.StatusBadRequest)
+				return
+			}
+
+			result, err := pool.Exec(queryCtx,
+				`DELETE FROM posts
+				USING users
+				WHERE posts.user_id = users.id
+				AND posts.id = $1
+				AND users.username = $2`,
+				postID,
+				username,
+			)
+
+			if err != nil {
+				log.Println("Failed to delete post:", err)
+				http.Error(w, "Failed to delete post", http.StatusInternalServerError)
+				return
+			}
+
+			if result.RowsAffected() == 0 {
+				http.Error(w, "Post not found or cannot be deleted", http.StatusNotFound)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"message": "Post deleted successfully",
+				"post_id": postID,
+			})
+			return
+		}
+
+		if r.Method == http.MethodPost {
+			var request CreatePostRequest
+
+			err := json.NewDecoder(r.Body).Decode(&request)
+			if err != nil {
+				log.Println("JSON decoding error:", err)
+				http.Error(w, "Invalid JSON", http.StatusBadRequest)
+				return
+			}
+
+			if request.Username == "" || request.Title == "" || request.Content == "" {
+				http.Error(w, "Missing required fields", http.StatusBadRequest)
+				return
+			}
+
+			if request.Latitude < -90 || request.Latitude > 90 ||
+				request.Longitude < -180 || request.Longitude > 180 {
+				http.Error(w, "Invalid coordinates", http.StatusBadRequest)
+				return
+			}
+
+			var userID int64
+
+			err = pool.QueryRow(queryCtx,
+				"SELECT id FROM users WHERE username = $1",
+				request.Username,
+			).Scan(&userID)
+
+			if err != nil {
+				if err == pgx.ErrNoRows {
+					http.Error(w, "User not found", http.StatusNotFound)
+				} else {
+					log.Println("Failed to retrieve user:", err)
+					http.Error(w, "Database error", http.StatusInternalServerError)
+				}
+				return
+			}
+
+			var postID int64
+
+			err = pool.QueryRow(queryCtx,
+				`INSERT INTO posts
+				(user_id, title, content, latitude, longitude)
+				VALUES ($1, $2, $3, $4, $5)
+				RETURNING id`,
+				userID,
+				request.Title,
+				request.Content,
+				request.Latitude,
+				request.Longitude,
+			).Scan(&postID)
+
+			if err != nil {
+				log.Println("Failed to create post:", err)
+				http.Error(w, "Failed to create post", http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"message": "Post created successfully",
+				"post_id": postID,
+			})
+			return
+		}
+
+		rows, err := pool.Query(queryCtx,
+			`SELECT posts.id, users.username, posts.title, posts.content,
+			posts.latitude, posts.longitude
+			FROM posts
+			JOIN users ON posts.user_id = users.id
+			ORDER BY posts.created_at DESC`,
+		)
+
+		if err != nil {
+			log.Println("Failed to retrieve posts:", err)
+			http.Error(w, "Failed to retrieve posts", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		posts := make([]Post, 0)
+
+		for rows.Next() {
+			var post Post
+
+			err := rows.Scan(
+				&post.ID,
+				&post.Author,
+				&post.Title,
+				&post.Content,
+				&post.Latitude,
+				&post.Longitude,
+			)
+
+			if err != nil {
+				log.Println("Failed to read posts:", err)
+				http.Error(w, "Failed to read posts", http.StatusInternalServerError)
+				return
+			}
+
+			posts = append(posts, post)
+		}
+
+		if err := rows.Err(); err != nil {
+			log.Println("Error iterating through posts:", err)
+			http.Error(w, "Error reading posts", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(posts)
+	})
+
+	// Comments
+	http.HandleFunc("/comments", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		postID, err := strconv.ParseInt(r.URL.Query().Get("post_id"), 10, 64)
+		if err != nil || postID <= 0 {
+			http.Error(w, "Invalid or missing post_id", http.StatusBadRequest)
+			return
+		}
+
+		queryCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		if r.Method == http.MethodPost {
+			var request CreateCommentRequest
+
+			err := json.NewDecoder(r.Body).Decode(&request)
+			if err != nil {
+				http.Error(w, "Invalid JSON", http.StatusBadRequest)
+				return
+			}
+
+			if request.Username == "" || request.Content == "" {
+				http.Error(w, "Missing required fields", http.StatusBadRequest)
+				return
+			}
+
+			var userID int64
+
+			err = pool.QueryRow(queryCtx,
+				"SELECT id FROM users WHERE username = $1",
+				request.Username,
+			).Scan(&userID)
+
+			if err != nil {
+				if err == pgx.ErrNoRows {
+					http.Error(w, "User not found", http.StatusNotFound)
+				} else {
+					log.Println("Failed to retrieve user:", err)
+					http.Error(w, "Database error", http.StatusInternalServerError)
+				}
+				return
+			}
+
+			var postExists bool
+
+			err = pool.QueryRow(queryCtx,
+				"SELECT EXISTS(SELECT 1 FROM posts WHERE id = $1)",
+				postID,
+			).Scan(&postExists)
+
+			if err != nil {
+				log.Println("Failed to check post:", err)
+				http.Error(w, "Database error", http.StatusInternalServerError)
+				return
+			}
+
+			if !postExists {
+				http.Error(w, "Post not found", http.StatusNotFound)
+				return
+			}
+
+			if request.ParentCommentID != nil {
+				var parentExists bool
+
+				err = pool.QueryRow(queryCtx,
+					`SELECT EXISTS(
+						SELECT 1 FROM comments
+						WHERE id = $1 AND post_id = $2
+					)`,
+					*request.ParentCommentID,
+					postID,
+				).Scan(&parentExists)
+
+				if err != nil {
+					log.Println("Failed to check parent comment:", err)
+					http.Error(w, "Database error", http.StatusInternalServerError)
+					return
+				}
+
+				if !parentExists {
+					http.Error(w, "Parent comment not found for this post", http.StatusNotFound)
+					return
+				}
+			}
+
+			var commentID int64
+
+			err = pool.QueryRow(queryCtx,
+				`INSERT INTO comments
+				(post_id, user_id, parent_comment_id, content)
+				VALUES ($1, $2, $3, $4)
+				RETURNING id`,
+				postID,
+				userID,
+				request.ParentCommentID,
+				request.Content,
+			).Scan(&commentID)
+
+			if err != nil {
+				log.Println("Failed to create comment:", err)
+				http.Error(w, "Failed to create comment", http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"message":    "Comment created successfully",
+				"comment_id": commentID,
+			})
+			return
+		}
+
+		rows, err := pool.Query(queryCtx,
+			`SELECT comments.id, comments.post_id, users.username,
+			comments.content, comments.parent_comment_id
+			FROM comments
+			JOIN users ON comments.user_id = users.id
+			WHERE comments.post_id = $1
+			ORDER BY comments.created_at ASC`,
+			postID,
+		)
+
+		if err != nil {
+			log.Println("Failed to retrieve comments:", err)
+			http.Error(w, "Failed to retrieve comments", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		comments := make([]Comment, 0)
+
+		for rows.Next() {
+			var comment Comment
+
+			err := rows.Scan(
+				&comment.ID,
+				&comment.PostID,
+				&comment.Author,
+				&comment.Content,
+				&comment.ParentCommentID,
+			)
+
+			if err != nil {
+				log.Println("Failed to read comments:", err)
+				http.Error(w, "Failed to read comments", http.StatusInternalServerError)
+				return
+			}
+
+			comments = append(comments, comment)
+		}
+
+		if err := rows.Err(); err != nil {
+			log.Println("Error iterating through comments:", err)
+			http.Error(w, "Error reading comments", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(comments)
+	})
+
+	// Health check
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Planetary backend is running!")
-
 	})
-	fmt.Println("Server starting on port 8080...")
 
+	fmt.Println("Server starting on port 8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
-	//fmt.Println("Welcome to the Planetary Game!")
 }
