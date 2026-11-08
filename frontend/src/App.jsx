@@ -182,7 +182,21 @@ function App() {
 
       const data = await response.json()
 
-      setChatMessages(data)
+      // Only update messages when the actual message list changes
+      setChatMessages(function (previousMessages) {
+        const messagesAreUnchanged =
+          previousMessages.length === data.length &&
+          previousMessages.every(function (message, index) {
+            return message.id === data[index].id
+          })
+
+        if (messagesAreUnchanged) {
+          return previousMessages
+        }
+
+        return data
+      })
+
       setChatError('')
     } catch (err) {
       setChatError(err.message)
@@ -260,13 +274,17 @@ function App() {
     }
   }, [selectedChannel])
 
-  // Automatically scroll to the newest chat message
+  // Automatically scroll only when the message count changes
   useEffect(() => {
+    if (chatMessages.length === 0) {
+      return
+    }
+
     chatMessagesEndRef.current?.scrollIntoView({
       behavior: 'smooth',
       block: 'end',
     })
-  }, [chatMessages])
+  }, [chatMessages.length])
 
   // Load comments when a post is selected
   useEffect(() => {
