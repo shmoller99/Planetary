@@ -23,6 +23,7 @@ type Post struct {
 	Content   string  `json:"content"`
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
+	Online    bool    `json:"online"`
 }
 
 type CreatePostRequest struct {
@@ -60,6 +61,7 @@ type UpdateProfileRequest struct {
 	PlanetName        string `json:"planet_name"`
 	PlanetDescription string `json:"planet_description"`
 }
+
 type ChatChannel struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
@@ -72,6 +74,7 @@ type ChatMessage struct {
 	Author    string    `json:"author"`
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"created_at"`
+	Online    bool      `json:"online"`
 }
 
 type CreateChatMessageRequest struct {
@@ -204,6 +207,41 @@ func main() {
 		json.NewEncoder(w).Encode(profile)
 	})
 
+	// User heartbeat
+	http.HandleFunc("/users/heartbeat", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		requestedUsername := r.URL.Query().Get("username")
+		if requestedUsername == "" {
+			http.Error(w, "Username is required", http.StatusBadRequest)
+			return
+		}
+
+		queryCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		result, err := pool.Exec(queryCtx,
+			"UPDATE users SET last_seen_at = NOW() WHERE username = $1",
+			requestedUsername,
+		)
+
+		if err != nil {
+			log.Println("Failed to update online status:", err)
+			http.Error(w, "Failed to update online status", http.StatusInternalServerError)
+			return
+		}
+
+		if result.RowsAffected() == 0 {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	})
+
 	// Posts
 	http.HandleFunc("/posts", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet &&
@@ -322,7 +360,8 @@ func main() {
 
 		rows, err := pool.Query(queryCtx,
 			`SELECT posts.id, users.username, posts.title, posts.content,
-			posts.latitude, posts.longitude
+			posts.latitude, posts.longitude,
+			COALESCE(users.last_seen_at > NOW() - INTERVAL '60 seconds', FALSE)
 			FROM posts
 			JOIN users ON posts.user_id = users.id
 			ORDER BY posts.created_at DESC`,
@@ -347,6 +386,7 @@ func main() {
 				&post.Content,
 				&post.Latitude,
 				&post.Longitude,
+				&post.Online,
 			)
 
 			if err != nil {
@@ -667,11 +707,12 @@ func main() {
 		}
 
 		rows, err := pool.Query(queryCtx,
-			`SELECT id, channel_id, username, content, created_at
+			`SELECT id, channel_id, username, content, created_at, online
 			FROM (
 				SELECT chat_messages.id, chat_messages.channel_id,
 					users.username, chat_messages.content,
-					chat_messages.created_at
+					chat_messages.created_at,
+					COALESCE(users.last_seen_at > NOW() - INTERVAL '60 seconds', FALSE) AS online
 				FROM chat_messages
 				JOIN users ON chat_messages.user_id = users.id
 				WHERE chat_messages.channel_id = $1
@@ -700,6 +741,7 @@ func main() {
 				&message.Author,
 				&message.Content,
 				&message.CreatedAt,
+				&message.Online,
 			); err != nil {
 				log.Println("Failed to read chat message:", err)
 				http.Error(w, "Failed to read chat messages", http.StatusInternalServerError)

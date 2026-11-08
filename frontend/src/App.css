@@ -912,3 +912,23 @@
 .chat-message p {
   text-align: left;
 }
+
+/* Online and offline status indicators */
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.status-dot.online {
+  background: #65e6ad;
+  box-shadow: 0 0 9px rgba(101, 230, 173, 0.8);
+}
+
+.status-dot.offline {
+  background: #ff647c;
+  box-shadow: 0 0 9px rgba(255, 100, 124, 0.5);
+}
