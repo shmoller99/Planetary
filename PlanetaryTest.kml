@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document>
+    <name>PlanetaryTest</name>
+
+    <Placemark>
+        <name>Hello Earth!</name>
+
+        <description>
+            Author: Alice
+            Planet: Blue Haven
+            Post ID: 1
+            Message: My first Planetary post!
+        </description>
+
+        <Point>
+            <coordinates>-74.0060,40.7128,0</coordinates>
+        </Point>
+    </Placemark>
+
+    <Placemark>
+        <name>Greetings London!</name>
+
+        <description>
+            Author: Bob
+            Planet: Red Horizon
+            Post ID: 2
+            Message: Hello from London!
+        </description>
+
+        <Point>
+            <coordinates>-0.1276,51.5072,0</coordinates>
+        </Point>
+    </Placemark>
+
+    <Placemark>
+        <name>Tokyo Adventures</name>
+
+        <description>
+            Author: Charlie
+            Planet: Green World
+            Post ID: 3
+            Message: Exploring Japan!
+        </description>
+
+        <Point>
+            <coordinates>139.6503,35.6762,0</coordinates>
+        </Point>
+    </Placemark>
+
+</Document>
+</kml>
