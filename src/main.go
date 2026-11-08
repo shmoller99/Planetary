@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -58,6 +59,24 @@ type UpdateProfileRequest struct {
 	Bio               string `json:"bio"`
 	PlanetName        string `json:"planet_name"`
 	PlanetDescription string `json:"planet_description"`
+}
+type ChatChannel struct {
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+type ChatMessage struct {
+	ID        int64     `json:"id"`
+	ChannelID int64     `json:"channel_id"`
+	Author    string    `json:"author"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type CreateChatMessageRequest struct {
+	Username string `json:"username"`
+	Content  string `json:"content"`
 }
 
 func main() {
@@ -514,6 +533,190 @@ func main() {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(comments)
+	})
+
+	// Chat channels
+	http.HandleFunc("/chat/channels", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		queryCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		rows, err := pool.Query(queryCtx,
+			`SELECT id, name, description
+			FROM chat_channels
+			ORDER BY id ASC`,
+		)
+
+		if err != nil {
+			log.Println("Failed to retrieve chat channels:", err)
+			http.Error(w, "Failed to retrieve chat channels", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		channels := make([]ChatChannel, 0)
+
+		for rows.Next() {
+			var channel ChatChannel
+
+			if err := rows.Scan(
+				&channel.ID,
+				&channel.Name,
+				&channel.Description,
+			); err != nil {
+				log.Println("Failed to read chat channel:", err)
+				http.Error(w, "Failed to read chat channels", http.StatusInternalServerError)
+				return
+			}
+
+			channels = append(channels, channel)
+		}
+
+		if err := rows.Err(); err != nil {
+			log.Println("Error iterating through chat channels:", err)
+			http.Error(w, "Error reading chat channels", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(channels)
+	})
+
+	// Chat messages
+	http.HandleFunc("/chat/messages", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		channelID, err := strconv.ParseInt(r.URL.Query().Get("channel_id"), 10, 64)
+		if err != nil || channelID <= 0 {
+			http.Error(w, "Invalid or missing channel_id", http.StatusBadRequest)
+			return
+		}
+
+		queryCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		if r.Method == http.MethodPost {
+			var request CreateChatMessageRequest
+
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				http.Error(w, "Invalid JSON", http.StatusBadRequest)
+				return
+			}
+
+			request.Content = strings.TrimSpace(request.Content)
+
+			if request.Username == "" || request.Content == "" {
+				http.Error(w, "Username and message content are required", http.StatusBadRequest)
+				return
+			}
+
+			if len([]rune(request.Content)) > 1000 {
+				http.Error(w, "Message cannot exceed 1000 characters", http.StatusBadRequest)
+				return
+			}
+
+			var userID int64
+
+			err := pool.QueryRow(queryCtx,
+				"SELECT id FROM users WHERE username = $1",
+				request.Username,
+			).Scan(&userID)
+
+			if err != nil {
+				if err == pgx.ErrNoRows {
+					http.Error(w, "User not found", http.StatusNotFound)
+				} else {
+					log.Println("Failed to retrieve chat user:", err)
+					http.Error(w, "Database error", http.StatusInternalServerError)
+				}
+				return
+			}
+
+			var messageID int64
+
+			err = pool.QueryRow(queryCtx,
+				`INSERT INTO chat_messages (channel_id, user_id, content)
+				VALUES ($1, $2, $3)
+				RETURNING id`,
+				channelID,
+				userID,
+				request.Content,
+			).Scan(&messageID)
+
+			if err != nil {
+				log.Println("Failed to create chat message:", err)
+				http.Error(w, "Failed to create message. Check that the channel exists.", http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"message":    "Chat message sent successfully",
+				"message_id": messageID,
+			})
+			return
+		}
+
+		rows, err := pool.Query(queryCtx,
+			`SELECT id, channel_id, username, content, created_at
+			FROM (
+				SELECT chat_messages.id, chat_messages.channel_id,
+					users.username, chat_messages.content,
+					chat_messages.created_at
+				FROM chat_messages
+				JOIN users ON chat_messages.user_id = users.id
+				WHERE chat_messages.channel_id = $1
+				ORDER BY chat_messages.created_at DESC, chat_messages.id DESC
+				LIMIT 100
+			) recent_messages
+			ORDER BY created_at ASC, id ASC`,
+			channelID,
+		)
+
+		if err != nil {
+			log.Println("Failed to retrieve chat messages:", err)
+			http.Error(w, "Failed to retrieve chat messages", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		messages := make([]ChatMessage, 0)
+
+		for rows.Next() {
+			var message ChatMessage
+
+			if err := rows.Scan(
+				&message.ID,
+				&message.ChannelID,
+				&message.Author,
+				&message.Content,
+				&message.CreatedAt,
+			); err != nil {
+				log.Println("Failed to read chat message:", err)
+				http.Error(w, "Failed to read chat messages", http.StatusInternalServerError)
+				return
+			}
+
+			messages = append(messages, message)
+		}
+
+		if err := rows.Err(); err != nil {
+			log.Println("Error iterating through chat messages:", err)
+			http.Error(w, "Error reading chat messages", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(messages)
 	})
 
 	// Health check

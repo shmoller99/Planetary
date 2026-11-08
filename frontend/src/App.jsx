@@ -64,6 +64,15 @@ function App() {
   const [replyingTo, setReplyingTo] = useState(null)
   const [replyContent, setReplyContent] = useState('')
 
+  // Global chat
+  const [channels, setChannels] = useState([])
+  const [selectedChannel, setSelectedChannel] = useState(null)
+  const [chatMessages, setChatMessages] = useState([])
+  const [chatLoading, setChatLoading] = useState(false)
+  const [chatError, setChatError] = useState('')
+  const [chatInput, setChatInput] = useState('')
+  const [sendingMessage, setSendingMessage] = useState(false)
+
   async function fetchPosts() {
     try {
       const response = await fetch('/posts')
@@ -72,8 +81,7 @@ function App() {
         throw new Error('Could not retrieve posts')
       }
 
-      const data = await response.json()
-      setPosts(data)
+      setPosts(await response.json())
       setError('')
     } catch (err) {
       setError(err.message)
@@ -84,7 +92,9 @@ function App() {
 
   async function fetchProfile() {
     try {
-      const response = await fetch(`/users?username=${encodeURIComponent(username)}`)
+      const response = await fetch(
+        `/users?username=${encodeURIComponent(username)}`
+      )
 
       if (!response.ok) {
         throw new Error('Could not retrieve profile')
@@ -111,18 +121,79 @@ function App() {
         throw new Error('Could not retrieve comments')
       }
 
-      const data = await response.json()
-      setComments(data)
+      setComments(await response.json())
     } catch (err) {
       setError(err.message)
       setComments([])
     }
   }
 
+  // Load chat channels
+  async function fetchChannels() {
+    try {
+      const response = await fetch('/chat/channels')
+
+      if (!response.ok) {
+        throw new Error('Could not retrieve chat channels')
+      }
+
+      const data = await response.json()
+      setChannels(data)
+
+      if (data.length > 0) {
+        setSelectedChannel(current =>
+          current
+            ? data.find(channel => channel.id === current.id) || data[0]
+            : data[0]
+        )
+      }
+
+      setChatError('')
+    } catch (err) {
+      setChatError(err.message)
+    }
+  }
+
+  // Load messages for the selected channel
+  async function fetchChatMessages(channelID) {
+    try {
+      const response = await fetch(
+        `/chat/messages?channel_id=${channelID}`
+      )
+
+      if (!response.ok) {
+        throw new Error('Could not retrieve chat messages')
+      }
+
+      const data = await response.json()
+      setChatMessages(data)
+      setChatError('')
+    } catch (err) {
+      setChatError(err.message)
+    } finally {
+      setChatLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchPosts()
     fetchProfile()
+    fetchChannels()
   }, [])
+
+  useEffect(() => {
+    if (!selectedChannel) return
+
+    setChatMessages([])
+    setChatLoading(true)
+    fetchChatMessages(selectedChannel.id)
+
+    const interval = setInterval(() => {
+      fetchChatMessages(selectedChannel.id)
+    }, 4000)
+
+    return () => clearInterval(interval)
+  }, [selectedChannel])
 
   useEffect(() => {
     if (selectedPost) {
@@ -200,7 +271,6 @@ function App() {
       }
 
       const result = await response.json()
-
       const responsePosts = await fetch('/posts')
       const updatedPosts = await responsePosts.json()
 
@@ -229,9 +299,7 @@ function App() {
       `Are you sure you want to delete "${post.title}"? This will also delete its comments and replies.`
     )
 
-    if (!confirmed) {
-      return
-    }
+    if (!confirmed) return
 
     setDeletingPostID(post.id)
     setError('')
@@ -269,9 +337,7 @@ function App() {
       ? newComment
       : replyContent
 
-    if (!commentContent.trim() || !selectedPost) {
-      return
-    }
+    if (!commentContent.trim() || !selectedPost) return
 
     try {
       const response = await fetch(
@@ -301,6 +367,45 @@ function App() {
       await fetchComments(selectedPost.id)
     } catch (err) {
       setError(err.message)
+    }
+  }
+
+  // Send a global chat message
+  async function sendChatMessage(event) {
+    event.preventDefault()
+
+    const message = chatInput.trim()
+
+    if (!message || !selectedChannel || sendingMessage) return
+
+    setSendingMessage(true)
+    setChatError('')
+
+    try {
+      const response = await fetch(
+        `/chat/messages?channel_id=${selectedChannel.id}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username,
+            content: message,
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(await response.text())
+      }
+
+      setChatInput('')
+      await fetchChatMessages(selectedChannel.id)
+    } catch (err) {
+      setChatError(err.message)
+    } finally {
+      setSendingMessage(false)
     }
   }
 
@@ -355,6 +460,13 @@ function App() {
     setLongitude(position.lng.toFixed(6))
     setPlacementPosition([position.lat, position.lng])
     setShowPostForm(true)
+  }
+
+  function formatMessageTime(timestamp) {
+    return new Date(timestamp).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
   }
 
   return (
@@ -492,6 +604,93 @@ function App() {
             )}
           </section>
 
+          {/* Global chat */}
+          <section className="chat-panel">
+            <div className="chat-panel-heading">
+              <div>
+                <span className="eyebrow">COMMUNITY</span>
+                <h2>Global Chat</h2>
+              </div>
+              <span className="chat-online-indicator">
+                <span className="online-dot"></span>
+                GLOBAL
+              </span>
+            </div>
+
+            <div className="chat-channel-list">
+              {channels.map(channel => (
+                <button
+                  key={channel.id}
+                  className={`chat-channel ${
+                    selectedChannel?.id === channel.id ? 'active' : ''
+                  }`}
+                  onClick={() => setSelectedChannel(channel)}
+                >
+                  <span># {channel.name}</span>
+                </button>
+              ))}
+
+              {channels.length === 0 && (
+                <p className="empty-message">
+                  {chatError || 'Loading channels...'}
+                </p>
+              )}
+            </div>
+
+            {selectedChannel && (
+              <>
+                <div className="chat-channel-description">
+                  {selectedChannel.description}
+                </div>
+
+                <div className="chat-message-list">
+                  {chatLoading && chatMessages.length === 0 ? (
+                    <p className="empty-message">Loading messages...</p>
+                  ) : chatMessages.length === 0 ? (
+                    <p className="empty-message">
+                      No messages yet. Start the conversation!
+                    </p>
+                  ) : (
+                    chatMessages.map(message => (
+                      <div className="chat-message" key={message.id}>
+                        <div className="chat-message-heading">
+                          <span className="chat-avatar">
+                            {message.author.charAt(0).toUpperCase()}
+                          </span>
+                          <strong>{message.author}</strong>
+                          <time>
+                            {formatMessageTime(message.created_at)}
+                          </time>
+                        </div>
+                        <p>{message.content}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <form className="chat-form" onSubmit={sendChatMessage}>
+                  <input
+                    value={chatInput}
+                    onChange={event => setChatInput(event.target.value)}
+                    placeholder={`Message #${selectedChannel.name}`}
+                    maxLength={1000}
+                    disabled={sendingMessage}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!chatInput.trim() || sendingMessage}
+                  >
+                    {sendingMessage ? '...' : 'Send'}
+                  </button>
+                </form>
+
+                {chatError && (
+                  <p className="chat-error">{chatError}</p>
+                )}
+              </>
+            )}
+          </section>
+
           {showPostForm && (
             <form className="post-form" onSubmit={createPost}>
               <h2>New transmission</h2>
@@ -561,7 +760,9 @@ function App() {
             ) : (
               posts.map(post => (
                 <div
-                  className={`post-card ${selectedPost?.id === post.id ? 'active' : ''}`}
+                  className={`post-card ${
+                    selectedPost?.id === post.id ? 'active' : ''
+                  }`}
                   key={post.id}
                   onClick={() => setSelectedPost(post)}
                   role="button"
