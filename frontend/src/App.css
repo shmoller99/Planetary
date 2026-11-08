@@ -932,3 +932,669 @@
   background: #ff647c;
   box-shadow: 0 0 9px rgba(255, 100, 124, 0.5);
 }
+/* =========================================
+   PLANETARY VISUAL IDENTITY
+========================================= */
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: #8271e8 #090e1a;
+}
+
+body {
+  margin: 0;
+  background: #080b14;
+}
+
+/* Animated space background */
+
+.app {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 75% 15%, rgba(73, 65, 145, 0.13), transparent 40%),
+    radial-gradient(ellipse at 15% 80%, rgba(39, 104, 150, 0.09), transparent 40%),
+    #080b14;
+}
+
+.app::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image:
+    radial-gradient(1px 1px at 10% 20%, #d8d0ff 99%, transparent),
+    radial-gradient(1px 1px at 80% 30%, #8bdaff 99%, transparent),
+    radial-gradient(2px 2px at 45% 70%, #a68aff 99%, transparent),
+    radial-gradient(1px 1px at 65% 85%, #ffffff 99%, transparent),
+    radial-gradient(1px 1px at 25% 90%, #8bdaff 99%, transparent);
+  background-size: 230px 230px;
+  animation: starDrift 65s linear infinite;
+}
+
+@keyframes starDrift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 230px 460px;
+  }
+}
+
+/* =========================================
+   CUSTOM PLANETARY LOGO
+========================================= */
+
+.brand {
+  gap: 13px;
+  cursor: default;
+}
+
+.brand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  color: #9d8cff;
+  font-size: initial;
+  filter: drop-shadow(0 0 8px rgba(130, 113, 232, 0.7));
+  transition: filter 0.3s ease;
+}
+
+.planetary-logo {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.logo-orbit {
+  transform-origin: 25px 25px;
+  animation: logoOrbit 9s linear infinite;
+}
+
+.brand:hover .brand-icon {
+  filter: drop-shadow(0 0 15px #8c7aff);
+}
+
+.brand:hover .planetary-logo {
+  transform: scale(1.12);
+  transition: transform 0.3s ease;
+}
+
+.brand-name {
+  background: linear-gradient(
+    90deg,
+    #f0edff,
+    #a99aff,
+    #76dfff,
+    #f0edff
+  );
+  background-size: 250% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: logoShimmer 7s linear infinite;
+}
+
+@keyframes logoOrbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes logoShimmer {
+  to {
+    background-position: 250% center;
+  }
+}
+
+/* =========================================
+   PLANET-THEMED SCROLLBARS
+========================================= */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #7666d6 #0a1020;
+}
+
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+*::-webkit-scrollbar-track {
+  border: 1px solid #242b43;
+  border-radius: 20px;
+  background:
+    linear-gradient(90deg, #090e1a, #11182a, #090e1a);
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.8);
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 35px;
+  border: 2px solid #0b1020;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 35% 30%, #e1d9ff 0%, #a394ff 13%, transparent 27%),
+    radial-gradient(circle at 65% 65%, #6ddcff 0%, #6554bd 35%, #29244e 75%);
+  box-shadow:
+    inset 0 0 5px rgba(255, 255, 255, 0.45),
+    0 0 8px rgba(130, 113, 232, 0.65);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background:
+    radial-gradient(circle at 35% 30%, #ffffff 0%, #c5baff 15%, transparent 30%),
+    radial-gradient(circle at 65% 65%, #8ceaff 0%, #8976f4 40%, #393064 80%);
+  box-shadow:
+    0 0 12px rgba(130, 113, 232, 0.9),
+    0 0 20px rgba(91, 204, 255, 0.35);
+}
+
+*::-webkit-scrollbar-corner {
+  background: #090e1a;
+}
+
+/* =========================================
+   ANIMATED PANELS
+========================================= */
+
+.profile-card,
+.chat-panel,
+.post-form,
+.selected-post {
+  position: relative;
+  overflow: hidden;
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.3s ease;
+}
+
+.profile-card:hover,
+.chat-panel:hover,
+.post-form:hover,
+.selected-post:hover {
+  border-color: rgba(151, 132, 255, 0.7);
+  box-shadow:
+    0 0 15px rgba(130, 113, 232, 0.12),
+    inset 0 0 20px rgba(130, 113, 232, 0.04);
+}
+
+.profile-card::after,
+.chat-panel::after,
+.post-form::after,
+.selected-post::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 55%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #a99aff, #6ddcff, transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.profile-card:hover::after,
+.chat-panel:hover::after,
+.post-form:hover::after,
+.selected-post:hover::after {
+  opacity: 1;
+  animation: panelScan 1.2s ease;
+}
+
+@keyframes panelScan {
+  from {
+    left: -100%;
+  }
+  to {
+    left: 150%;
+  }
+}
+
+/* =========================================
+   POST CARD INTERACTIONS
+========================================= */
+
+.post-card {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.25s ease,
+    border-color 0.25s ease,
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.post-card:hover {
+  transform: translateY(-3px);
+  border-color: #9786ff;
+  background: linear-gradient(120deg, #1c2540, #202b49);
+  box-shadow: 0 7px 22px rgba(92, 75, 180, 0.2);
+}
+
+.post-card.active {
+  box-shadow:
+    0 0 0 1px rgba(151, 132, 255, 0.25),
+    0 0 18px rgba(130, 113, 232, 0.2);
+}
+
+.post-card h3 {
+  transition: color 0.2s ease;
+}
+
+.post-card:hover h3 {
+  color: #cfc5ff;
+}
+
+/* =========================================
+   BUTTON INTERACTIONS
+========================================= */
+
+button {
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    color 0.2s ease;
+}
+
+.new-post-button,
+.submit-button,
+.chat-form button,
+.comment-form button,
+.reply-form button {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 12px rgba(130, 113, 232, 0.18);
+}
+
+.new-post-button:hover,
+.submit-button:hover,
+.chat-form button:hover,
+.comment-form button:hover,
+.reply-form button:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 12px rgba(130, 113, 232, 0.5),
+    0 0 25px rgba(130, 113, 232, 0.2);
+}
+
+.new-post-button:active,
+.submit-button:active,
+.chat-form button:active,
+.comment-form button:active,
+.reply-form button:active {
+  transform: scale(0.96);
+}
+
+button:focus-visible,
+.post-card:focus-visible {
+  outline: 2px solid #9b8aff;
+  outline-offset: 3px;
+}
+
+/* =========================================
+   FORM FOCUS EFFECTS
+========================================= */
+
+input,
+textarea {
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    background 0.25s ease;
+}
+
+input:focus,
+textarea:focus {
+  border-color: #9583ff !important;
+  box-shadow:
+    0 0 0 2px rgba(130, 113, 232, 0.12),
+    0 0 14px rgba(130, 113, 232, 0.18);
+  background: #10182a;
+}
+
+/* =========================================
+   PROFILE PLANET ANIMATION
+========================================= */
+
+.profile-avatar {
+  position: relative;
+  animation: avatarFloat 5s ease-in-out infinite;
+}
+
+.planet-symbol {
+  position: relative;
+  animation: planetFloat 6s ease-in-out infinite;
+}
+
+.profile-avatar:hover,
+.planet-symbol:hover {
+  box-shadow:
+    0 0 18px rgba(130, 113, 232, 0.8),
+    0 0 35px rgba(130, 113, 232, 0.3);
+}
+
+@keyframes avatarFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes planetFloat {
+  0%, 100% {
+    transform: rotate(-5deg) translateY(0);
+  }
+  50% {
+    transform: rotate(5deg) translateY(-3px);
+  }
+}
+
+/* =========================================
+   ONLINE STATUS PULSING
+========================================= */
+
+.online-dot,
+.status-dot.online {
+  animation: onlinePulse 2.5s ease-in-out infinite;
+}
+
+.status-dot.offline {
+  opacity: 0.85;
+}
+
+@keyframes onlinePulse {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(101, 230, 173, 0.4);
+  }
+  50% {
+    box-shadow:
+      0 0 12px rgba(101, 230, 173, 0.9),
+      0 0 20px rgba(101, 230, 173, 0.25);
+  }
+}
+
+/* =========================================
+   CHAT ANIMATIONS
+========================================= */
+
+.chat-message {
+  animation: messageAppear 0.35s ease both;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.chat-message:hover {
+  transform: translateX(3px);
+  background: rgba(29, 39, 62, 0.9);
+}
+
+.chat-channel {
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.chat-channel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 12px rgba(130, 113, 232, 0.2);
+}
+
+.chat-channel.active {
+  box-shadow: 0 0 12px rgba(130, 113, 232, 0.25);
+}
+
+.chat-avatar,
+.small-avatar,
+.comment-avatar {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.chat-message:hover .chat-avatar,
+.post-card:hover .small-avatar,
+.comment:hover .comment-avatar {
+  transform: scale(1.12);
+  box-shadow: 0 0 10px rgba(130, 113, 232, 0.5);
+}
+
+@keyframes messageAppear {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================================
+   MAP AND MARKER ANIMATIONS
+========================================= */
+
+.map-overlay {
+  border-color: rgba(151, 132, 255, 0.45);
+  box-shadow:
+    0 0 18px rgba(130, 113, 232, 0.15),
+    inset 0 0 15px rgba(130, 113, 232, 0.05);
+  backdrop-filter: blur(10px);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.map-overlay:hover {
+  border-color: #9b8aff;
+  box-shadow: 0 0 22px rgba(130, 113, 232, 0.3);
+}
+
+.marker-glow {
+  position: relative;
+  animation: markerPulse 2.5s ease-in-out infinite;
+}
+
+.marker-glow::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border: 1px solid rgba(170, 153, 255, 0.65);
+  border-radius: 50%;
+  animation: markerRipple 2.5s ease-out infinite;
+}
+
+@keyframes markerPulse {
+  0%, 100% {
+    transform: scale(0.9);
+    box-shadow: 0 0 9px #998aff, 0 0 18px #8271e8;
+  }
+  50% {
+    transform: scale(1.12);
+    box-shadow: 0 0 17px #b8aaff, 0 0 30px #8271e8;
+  }
+}
+
+@keyframes markerRipple {
+  from {
+    transform: scale(0.7);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+.placement-flag {
+  animation: flagAppear 0.4s ease both;
+}
+
+@keyframes flagAppear {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* =========================================
+   COMMENTS AND DETAILS
+========================================= */
+
+.comment {
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+  animation: messageAppear 0.3s ease both;
+}
+
+.comment:hover {
+  background: #172238;
+  transform: translateX(2px);
+}
+
+.reply-button,
+.close-button,
+.edit-profile-button,
+.cancel-profile-button,
+.delete-post-button {
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.reply-button:hover {
+  color: #d1c8ff;
+}
+
+.close-button:hover {
+  color: #ffffff;
+  transform: rotate(90deg);
+}
+
+.edit-profile-button:hover,
+.cancel-profile-button:hover,
+.delete-post-button:hover {
+  transform: translateY(-1px);
+}
+
+/* =========================================
+   RESPONSIVE AND ACCESSIBILITY
+========================================= */
+
+@media (max-width: 480px) {
+  .brand-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand-name {
+    font-size: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+/* Rectangular planetary scrollbar */
+
+*::-webkit-scrollbar {
+  width: 17px;
+  height: 17px;
+}
+
+*::-webkit-scrollbar-track {
+  border-radius: 0;
+  border: 1px solid #252c40;
+  background: linear-gradient(
+    90deg,
+    #080c16,
+    #11182a,
+    #080c16
+  );
+  box-shadow: inset 0 0 8px #000;
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 45px;
+  border-radius: 0;
+  border: 2px solid #090e1a;
+  background:
+    radial-gradient(
+      ellipse at center,
+      transparent 0%,
+      transparent 29%,
+      #c5b5ff 31%,
+      #8271e8 36%,
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 38% 35%,
+      #eeeaff 0%,
+      #a99aff 18%,
+      #6655c5 48%,
+      #211d48 85%
+    );
+
+  box-shadow:
+    0 0 9px rgba(151, 132, 255, 0.8),
+    inset 0 0 7px rgba(255, 255, 255, 0.3);
+  background-size: 100% 100%;
+  transition: box-shadow 0.3s ease;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  box-shadow:
+    0 0 13px #a895ff,
+    0 0 22px rgba(92, 195, 255, 0.55);
+  background:
+    radial-gradient(
+      ellipse at center,
+      transparent 0%,
+      transparent 27%,
+      #e5dcff 29%,
+      #8cdbff 35%,
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 38% 35%,
+      #ffffff 0%,
+      #c8bbff 18%,
+      #9584ff 48%,
+      #29234f 85%
+    );
+}
+
+*::-webkit-scrollbar-corner {
+  background: #080c16;
+}
